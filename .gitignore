@@ -1,21 +1,88 @@
-# Environment and secrets
+# ==========================================
+# Hệ điều hành & File tạm
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.log
+*.tmp
+
+# ==========================================
+# Môi trường & Bảo mật (Secrets / Credentials)
+# ==========================================
 .env
 .env.*
 !.env.example
-application-local.properties
+*.env
+**/application-local.properties
+**/application-dev.properties
+**/google-services.json
 
-# Java / Spring Boot
-target/
-*.class
-
-# Android Studio / Gradle
-.gradle/
-**/build/
-local.properties
+# ==========================================
+# IDE & Editor (IntelliJ, Android Studio, VS Code)
+# ==========================================
 .idea/
 *.iml
+*.iws
+*.ipr
+out/
+.vscode/
+.classpath
+.project
+.settings/
 
-# Logs and OS
-*.log
-.DS_Store
-Thumbs.db
+# ==========================================
+# Backend (Java / Maven)
+# ==========================================
+target/
+**/target/
+javac_args.txt
+**/javac_args.txt
+
+# ==========================================
+# Frontend (Android / Gradle)
+# ==========================================
+.gradle/
+**/.gradle/
+build/
+**/build/
+captures/
+**/captures/
+.externalNativeBuild/
+**/.externalNativeBuild/
+.cxx/
+**/.cxx/
+
+# File cấu hình SDK cá nhân
+local.properties
+**/local.properties
+
+# Android Build Outputs & Chứng chỉ release
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+*.keystore
+*.jks
+
+# Package files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Ngoại lệ bắt buộc giữ lại Wrapper JARs để chạy được ./gradlew và ./mvnw
+!gradle-wrapper.jar
+!**/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+!maven-wrapper.jar
+!**/maven-wrapper.jar
+!**/.mvn/wrapper/maven-wrapper.jar
