@@ -31,12 +31,30 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * =========================================================================================
+ * [FRONTEND - UI] FORM ĐĂNG & CHỈNH SỬA CÔNG THỨC MÓN ĂN (AddRecipeFragment - DialogFragment)
+ * =========================================================================================
+ * - Nhiệm vụ:
+ *   1. Chạy ở chế độ Fullscreen Dialog để người dùng nhập liệu thoải mái.
+ *   2. Đảm nhận cả 2 chức năng:
+ *      + THÊM MỚI (POST /api/recipes?userId={userId}): Khi bấm nút (+) ở trang chủ.
+ *      + CHỈNH SỬA (PUT /api/recipes/{id}?userId={userId}): Khi bấm nút Sửa ở chi tiết món ăn của chính mình.
+ *   3. Nhập động không giới hạn số lượng nguyên liệu (Tên, Định lượng, Đơn vị) và các bước nấu (Tự động đánh số Bước 1, Bước 2...).
+ *   4. Thu thập toàn bộ dữ liệu, kiểm tra hợp lệ và đóng gói thành JSON gửi lên Spring Boot.
+ * - Câu hỏi bảo vệ:
+ *   + "Cách thêm/xóa nguyên liệu động trên giao diện làm thế nào?": Xem `addIngredientRow(...)` và `llIngredientsContainer.addView(row)`.
+ *   + "Cách đánh số lại các bước khi xóa 1 bước ở giữa?": Xem hàm `renumberInstructionSteps()`.
+ *   + "Làm sao phân biệt Thêm mới và Sửa?": Kiểm tra biến `recipeToEdit != null`. Nếu sửa thì method = PUT, thêm thì method = POST.
+ * =========================================================================================
+ */
 public class AddRecipeFragment extends DialogFragment {
 
     public interface OnRecipeAddedListener {
         void onRecipeAdded(Recipe newRecipe);
     }
 
+    // Các thành phần View giao diện
     private ImageView btnBack;
     private TextView tvHeaderTitle;
     private AppCompatButton btnQuickSave, btnSubmitRecipe;
@@ -51,10 +69,16 @@ public class AddRecipeFragment extends DialogFragment {
     private OnRecipeAddedListener listener;
     private Recipe recipeToEdit;
 
+    /**
+     * Khởi tạo Fragment cho chức năng THÊM MỚI
+     */
     public static AddRecipeFragment newInstance() {
         return new AddRecipeFragment();
     }
 
+    /**
+     * Khởi tạo Fragment cho chức năng CHỈNH SỬA (kèm dữ liệu món ăn cũ)
+     */
     public static AddRecipeFragment newInstance(Recipe recipeToEdit) {
         AddRecipeFragment fragment = new AddRecipeFragment();
         Bundle args = new Bundle();
@@ -70,9 +94,10 @@ public class AddRecipeFragment extends DialogFragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Chế độ toàn màn hình để người dùng nhập đầy đủ nguyên liệu và công thức một cách thoải mái
+        // Thiết lập giao diện dạng Fullscreen không có thanh ActionBar mặc định
         setStyle(DialogFragment.STYLE_NORMAL, android.R.style.Theme_Material_Light_NoActionBar_Fullscreen);
 
+        // Lấy thông tin món cần sửa nếu có truyền vào qua Arguments
         if (getArguments() != null && getArguments().containsKey("recipe_to_edit")) {
             recipeToEdit = (Recipe) getArguments().getSerializable("recipe_to_edit");
         }
@@ -91,9 +116,11 @@ public class AddRecipeFragment extends DialogFragment {
         initViews(view);
         setupListeners();
 
+        // Nếu là chế độ chỉnh sửa -> Đổ dữ liệu cũ vào các ô nhập
         if (recipeToEdit != null) {
             populateExistingRecipeData();
         } else {
+            // Nếu là thêm mới -> Khởi tạo sẵn vài dòng mẫu để người dùng tiện nhập
             prepopulateDefaultRows();
         }
 
@@ -103,6 +130,7 @@ public class AddRecipeFragment extends DialogFragment {
     @Override
     public void onStart() {
         super.onStart();
+        // Căn chỉnh kích thước cửa sổ chiếm trọn màn hình điện thoại
         Dialog dialog = getDialog();
         if (dialog != null && dialog.getWindow() != null) {
             dialog.getWindow().setLayout(
@@ -112,6 +140,9 @@ public class AddRecipeFragment extends DialogFragment {
         }
     }
 
+    /**
+     * Ánh xạ các trường nhập liệu từ file giao diện fragment_add_recipe.xml
+     */
     private void initViews(View view) {
         btnBack = view.findViewById(R.id.btnBack);
         tvHeaderTitle = view.findViewById(R.id.tvHeaderTitle);
@@ -137,28 +168,37 @@ public class AddRecipeFragment extends DialogFragment {
         progressBarLoading = view.findViewById(R.id.progressBarLoading);
     }
 
+    /**
+     * Đăng ký lắng nghe sự kiện click cho các nút bấm
+     */
     private void setupListeners() {
         btnBack.setOnClickListener(v -> dismiss());
         btnQuickSave.setOnClickListener(v -> saveRecipe());
         btnSubmitRecipe.setOnClickListener(v -> saveRecipe());
 
+        // Nút thêm dòng nguyên liệu mới
         btnAddIngredient.setOnClickListener(v -> addIngredientRow("", "", ""));
+        // Nút thêm dòng bước nấu mới
         btnAddInstruction.setOnClickListener(v -> addInstructionRow(""));
     }
 
+    /**
+     * Khởi tạo sẵn 3 dòng nguyên liệu và 2 dòng bước nấu trống khi mở form thêm mới
+     */
     private void prepopulateDefaultRows() {
-        // Khởi tạo sẵn 3 dòng nguyên liệu mẫu để người dùng bắt đầu nhập ngay
         addIngredientRow("", "", "");
         addIngredientRow("", "", "");
         addIngredientRow("", "", "");
 
-        // Khởi tạo sẵn 2 bước nấu mẫu
         addInstructionRow("");
         addInstructionRow("");
     }
 
     /**
-     * Điền toàn bộ thông tin món ăn, dinh dưỡng, nguyên liệu và các bước khi ở chế độ chỉnh sửa
+     * [CHẾ ĐỘ CHỈNH SỬA]:
+     * - Đổi tiêu đề Header thành "Chỉnh Sửa Món Ăn".
+     * - Điền đầy đủ thông tin cũ của món ăn (Tên, mô tả, ảnh, thời gian, calo, đạm, carbs, chất béo).
+     * - Tái hiện lại danh sách nguyên liệu và các bước hướng dẫn nấu cũ.
      */
     private void populateExistingRecipeData() {
         if (recipeToEdit == null) return;
@@ -216,7 +256,9 @@ public class AddRecipeFragment extends DialogFragment {
     }
 
     /**
-     * Thêm một dòng nguyên liệu mới vào danh sách
+     * [THÊM NGUYÊN LIỆU ĐỘNG]:
+     * - Nạp layout item_add_ingredient_row.xml vào bên trong LinearLayout llIngredientsContainer.
+     * - Bấm icon thùng rác (btnRemove) để xóa dòng đó khỏi màn hình.
      */
     private void addIngredientRow(String name, String quantity, String unit) {
         View row = LayoutInflater.from(requireContext()).inflate(R.layout.item_add_ingredient_row, llIngredientsContainer, false);
@@ -236,7 +278,9 @@ public class AddRecipeFragment extends DialogFragment {
     }
 
     /**
-     * Thêm một bước nấu mới vào danh sách công thức chế biến
+     * [THÊM BƯỚC NẤU ĐỘNG]:
+     * - Nạp layout item_add_instruction_row.xml vào bên trong llInstructionsContainer.
+     * - Tự động cập nhật lại nhãn "Bước 1", "Bước 2", "Bước 3"... khi thêm hoặc xóa dòng.
      */
     private void addInstructionRow(String description) {
         View row = LayoutInflater.from(requireContext()).inflate(R.layout.item_add_instruction_row, llInstructionsContainer, false);
@@ -249,7 +293,7 @@ public class AddRecipeFragment extends DialogFragment {
 
         btnRemove.setOnClickListener(v -> {
             llInstructionsContainer.removeView(row);
-            renumberInstructionSteps();
+            renumberInstructionSteps(); // Đánh số lại các bước còn lại
         });
 
         llInstructionsContainer.addView(row);
@@ -257,7 +301,7 @@ public class AddRecipeFragment extends DialogFragment {
     }
 
     /**
-     * Đánh số thứ tự lại các bước nấu (Bước 1, Bước 2, ...) sau khi thêm hoặc xóa
+     * Đánh số thứ tự lại các bước nấu liên tục từ Bước 1 đến Bước N
      */
     private void renumberInstructionSteps() {
         int count = llInstructionsContainer.getChildCount();
@@ -271,7 +315,13 @@ public class AddRecipeFragment extends DialogFragment {
     }
 
     /**
-     * Thu thập toàn bộ dữ liệu (thông tin chung, dinh dưỡng, nguyên liệu, công thức) và gửi lên Backend
+     * [LƯU MÓN ĂN - THỰC THI GỬI DỮ LIỆU LÊN SERVER]:
+     * 1. Kiểm tra session đăng nhập và validate bắt buộc tên món.
+     * 2. Lấy các chỉ số thời gian nấu và dinh dưỡng (có fallback giá trị mặc định hợp lý).
+     * 3. Duyệt container nguyên liệu để tạo JSONArray ingredients.
+     * 4. Duyệt container bước nấu để tạo JSONArray instructions.
+     * 5. Gói tất cả vào 1 đối tượng JSONObject tương thích với RecipeRequestDto phía backend.
+     * 6. Nếu sửa: gửi PUT /api/recipes/{id}. Nếu tạo mới: gửi POST /api/recipes.
      */
     private void saveRecipe() {
         if (!sessionManager.isLoggedIn()) {
@@ -290,7 +340,7 @@ public class AddRecipeFragment extends DialogFragment {
         String desc = etDescription.getText().toString().trim();
         String imgUrl = etImageUrl.getText().toString().trim();
 
-        // 1. Thời gian & khẩu phần
+        // 1. Thời gian & Khẩu phần
         int prepTime = 15;
         try {
             String val = etPrepTime.getText().toString().trim();
@@ -309,7 +359,7 @@ public class AddRecipeFragment extends DialogFragment {
             if (!val.isEmpty()) servings = Integer.parseInt(val);
         } catch (Exception ignored) {}
 
-        // 2. Dinh dưỡng
+        // 2. Chỉ số dinh dưỡng (Macros)
         int calories = 350;
         try {
             String val = etCalories.getText().toString().trim();
@@ -334,7 +384,7 @@ public class AddRecipeFragment extends DialogFragment {
             if (!val.isEmpty()) fat = Double.parseDouble(val);
         } catch (Exception ignored) {}
 
-        // 3. Nguyên liệu (Ingredients)
+        // 3. Đóng gói danh sách nguyên liệu (Ingredients)
         JSONArray ingredientsArray = new JSONArray();
         int ingChildCount = llIngredientsContainer.getChildCount();
         for (int i = 0; i < ingChildCount; i++) {
@@ -374,7 +424,7 @@ public class AddRecipeFragment extends DialogFragment {
             }
         }
 
-        // 4. Công thức chế biến & Các bước nấu (Instructions)
+        // 4. Đóng gói các bước chế biến (Instructions)
         JSONArray instructionsArray = new JSONArray();
         int instChildCount = llInstructionsContainer.getChildCount();
         int stepNumber = 1;
@@ -394,7 +444,7 @@ public class AddRecipeFragment extends DialogFragment {
             }
         }
 
-        // Đóng gói JSON tương thích 100% với RecipeRequestDto
+        // 5. Đóng gói toàn bộ vào JSON khớp 100% với RecipeRequestDto của Backend
         JSONObject req = new JSONObject();
         try {
             req.put("title", title);
@@ -415,6 +465,7 @@ public class AddRecipeFragment extends DialogFragment {
             return;
         }
 
+        // Bật trạng thái Loading để tránh người dùng nhấn lưu nhiều lần
         setLoading(true);
 
         long userId = sessionManager.getUserId();
@@ -425,6 +476,7 @@ public class AddRecipeFragment extends DialogFragment {
                 : ApiEndpoints.getCreateRecipeUrl(userId);
         String successMessage = isEditing ? "Cập nhật món ăn thành công!" : "Thêm món ăn thành công!";
 
+        // Gửi Volley JsonObjectRequest lên Spring Boot
         JsonObjectRequest saveReq = new JsonObjectRequest(
                 method,
                 requestUrl,
@@ -432,6 +484,7 @@ public class AddRecipeFragment extends DialogFragment {
                 resp -> {
                     setLoading(false);
                     Toast.makeText(requireContext(), successMessage, Toast.LENGTH_LONG).show();
+                    // Bắn callback để màn hình cha (MainActivity hoặc RecipeDetailActivity) cập nhật lại UI
                     if (listener != null) {
                         Recipe savedRecipe = Recipe.fromJson(resp);
                         listener.onRecipeAdded(savedRecipe);
@@ -465,6 +518,9 @@ public class AddRecipeFragment extends DialogFragment {
         ApiClient.getQueue(requireContext()).add(saveReq);
     }
 
+    /**
+     * Bật/tắt vòng xoay Loading và khóa nút bấm khi đang chờ server phản hồi
+     */
     private void setLoading(boolean loading) {
         if (progressBarLoading != null) {
             progressBarLoading.setVisibility(loading ? View.VISIBLE : View.GONE);

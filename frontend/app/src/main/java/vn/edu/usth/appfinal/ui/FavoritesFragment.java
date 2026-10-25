@@ -28,6 +28,22 @@ import vn.edu.usth.appfinal.utils.SessionManager;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * =========================================================================================
+ * [FRONTEND - UI] FRAGMENT MÓN ĂN YÊU THÍCH (Tab "Yêu thích")
+ * =========================================================================================
+ * - Nhiệm vụ:
+ *   1. Kiểm tra trạng thái đăng nhập:
+ *      + Nếu là khách: Hiển thị giao diện nhắc nhở đăng nhập kèm nút "Đăng nhập ngay".
+ *      + Nếu đã đăng nhập: Gọi API GET /api/favorites?userId={userId} để lấy danh sách món đã lưu.
+ *   2. Hiển thị danh sách món đã thả tim: Tái sử dụng RecipeAdapter.
+ *   3. Xử lý bỏ yêu thích: Khi bấm vào icon trái tim trên tab này, gửi API DELETE để xóa khỏi danh sách,
+ *      đồng thời loại bỏ item ra khỏi RecyclerView ngay lập tức.
+ * - Câu hỏi bảo vệ:
+ *   + "Giao diện khi chưa đăng nhập hoặc khi chưa có món yêu thích được cấu hình ở đâu?":
+ *     Xem layoutEmpty, tvEmptyTitle, tvEmptySub, btnEmptyLogin trong hàm loadFavorites().
+ * =========================================================================================
+ */
 public class FavoritesFragment extends Fragment implements RecipeAdapter.OnRecipeClickListener, RecipeAdapter.OnFavoriteClickListener {
 
     private RecyclerView rvFavorites;
@@ -54,6 +70,7 @@ public class FavoritesFragment extends Fragment implements RecipeAdapter.OnRecip
 
         sessionManager = SessionManager.getInstance(requireContext());
 
+        // Ánh xạ các view
         rvFavorites = view.findViewById(R.id.rvFavorites);
         progressBar = view.findViewById(R.id.progressBar);
         layoutEmpty = view.findViewById(R.id.layoutEmpty);
@@ -64,6 +81,7 @@ public class FavoritesFragment extends Fragment implements RecipeAdapter.OnRecip
         tvErrorMessage = view.findViewById(R.id.tvErrorMessage);
         btnRetry = view.findViewById(R.id.btnRetry);
 
+        // Khởi tạo danh sách RecyclerView
         rvFavorites.setLayoutManager(new LinearLayoutManager(requireContext()));
         adapter = new RecipeAdapter(new ArrayList<>());
         adapter.setOnRecipeClickListener(this);
@@ -79,12 +97,19 @@ public class FavoritesFragment extends Fragment implements RecipeAdapter.OnRecip
     @Override
     public void onResume() {
         super.onResume();
+        // Tải lại danh sách yêu thích khi người dùng chuyển lại tab này
         loadFavorites();
     }
 
+    /**
+     * [TẢI DANH SÁCH MÓN YÊU THÍCH TỪ SERVER]:
+     * - Nếu chưa đăng nhập: Hiện khung rỗng với tiêu đề "Yêu cầu đăng nhập" và nút Login.
+     * - Nếu đã đăng nhập: Gọi GET /api/favorites?userId={id}.
+     */
     public void loadFavorites() {
         if (!isAdded()) return;
 
+        // [KIỂM TRA ĐĂNG NHẬP]
         if (!sessionManager.isLoggedIn()) {
             progressBar.setVisibility(View.GONE);
             layoutError.setVisibility(View.GONE);
@@ -96,6 +121,7 @@ public class FavoritesFragment extends Fragment implements RecipeAdapter.OnRecip
             return;
         }
 
+        // Đã đăng nhập -> Chuẩn bị tải dữ liệu
         btnEmptyLogin.setVisibility(View.GONE);
         tvEmptyTitle.setText(R.string.no_favorites_yet);
         tvEmptySub.setText(R.string.favorites_sub);
@@ -121,11 +147,12 @@ public class FavoritesFragment extends Fragment implements RecipeAdapter.OnRecip
                         JSONObject obj = response.optJSONObject(i);
                         if (obj != null) {
                             Recipe r = Recipe.fromJson(obj);
-                            r.setFavorite(true);
+                            r.setFavorite(true); // Toàn bộ món trong tab này đều đã được thả tim
                             favoriteList.add(r);
                         }
                     }
 
+                    // Nếu người dùng chưa lưu món nào -> Hiện layout báo trống
                     if (favoriteList.isEmpty()) {
                         layoutEmpty.setVisibility(View.VISIBLE);
                         layoutError.setVisibility(View.GONE);
@@ -146,6 +173,9 @@ public class FavoritesFragment extends Fragment implements RecipeAdapter.OnRecip
         ApiClient.getQueue(requireContext()).add(request);
     }
 
+    /**
+     * Bấm vào món yêu thích -> Mở RecipeDetailActivity để xem chi tiết
+     */
     @Override
     public void onRecipeClick(Recipe recipe) {
         Intent intent = new Intent(requireContext(), RecipeDetailActivity.class);
@@ -153,12 +183,16 @@ public class FavoritesFragment extends Fragment implements RecipeAdapter.OnRecip
         startActivity(intent);
     }
 
+    /**
+     * [BỎ YÊU THÍCH TRỰC TIẾP TRÊN TAB YÊU THÍCH]:
+     * - Gửi DELETE /api/favorites/{recipeId}?userId={userId}
+     * - Xóa ngay món đó khỏi danh sách favoriteList và cập nhật RecyclerView
+     */
     @Override
     public void onFavoriteClick(Recipe recipe, int position) {
         long userId = sessionManager.getUserId();
         if (userId <= 0) return;
 
-        // DELETE /api/favorites/{recipeId}?userId={userId}
         String delUrl = ApiEndpoints.getRemoveFavoriteUrl(recipe.getId(), userId);
         JsonObjectRequest delReq = new JsonObjectRequest(
                 Request.Method.DELETE,

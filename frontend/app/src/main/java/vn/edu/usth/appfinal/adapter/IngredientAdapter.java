@@ -11,6 +11,16 @@ import vn.edu.usth.appfinal.model.Ingredient;
 
 import java.util.List;
 
+/**
+ * =========================================================================================
+ * [FRONTEND - ADAPTER] ADAPTER HIỂN THỊ DANH SÁCH NGUYÊN LIỆU (IngredientAdapter)
+ * =========================================================================================
+ * - Dùng trong `RecipeDetailActivity` để hiển thị từng dòng nguyên liệu (`item_ingredient.xml`).
+ * - Hiển thị:
+ *   + Tên nguyên liệu (tvIngredientName, vd: "Thịt bò thăn").
+ *   + Định lượng & đơn vị (tvIngredientQuantity, vd: "300g" hoặc "2 thìa cà phê").
+ * =========================================================================================
+ */
 public class IngredientAdapter extends RecyclerView.Adapter<IngredientAdapter.ViewHolder> {
 
     private final List<Ingredient> ingredients;
@@ -26,10 +36,15 @@ public class IngredientAdapter extends RecyclerView.Adapter<IngredientAdapter.Vi
         return new ViewHolder(view);
     }
 
+    /**
+     * Gắn tên nguyên liệu và định lượng vào từng dòng item_ingredient
+     */
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Ingredient item = ingredients.get(position);
         holder.tvIngredientName.setText(item.getName());
+        
+        // Định lượng nguyên liệu (số lượng + đơn vị)
         String formattedQty = item.getFormattedQuantity();
         if (formattedQty == null || formattedQty.trim().isEmpty() || formattedQty.trim().equalsIgnoreCase("null")) {
             holder.tvIngredientQuantity.setText("");

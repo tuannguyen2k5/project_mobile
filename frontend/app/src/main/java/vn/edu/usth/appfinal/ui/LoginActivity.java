@@ -22,6 +22,22 @@ import vn.edu.usth.appfinal.utils.SessionManager;
 
 import java.nio.charset.StandardCharsets;
 
+/**
+ * =========================================================================================
+ * [FRONTEND - UI] MÀN HÌNH ĐĂNG NHẬP (LoginActivity)
+ * =========================================================================================
+ * - Nhiệm vụ:
+ *   1. Nhận email và mật khẩu từ người dùng, kiểm tra không để trống.
+ *   2. Gửi request POST tới endpoint /api/auth/login qua Volley.
+ *   3. Nhận kết quả thành công -> Lưu ID, Tên, Email vào SessionManager (SharedPreferences).
+ *   4. Chuyển hướng sang MainActivity.
+ *   5. Cung cấp nút tiện ích cấu hình IP Backend linh hoạt ngay trên giao diện.
+ * - Câu hỏi bảo vệ:
+ *   + "Xử lý khi đăng nhập thất bại như thế nào?": Bắt mã lỗi từ error.networkResponse, bóc tách chuỗi JSON
+ *     để hiển thị đúng thông điệp 'Sai email hoặc mật khẩu' hoặc 'Không thể kết nối máy chủ'.
+ *   + "Nút cấu hình IP máy chủ nằm ở đâu?": Xem `showServerConfigDialog()`.
+ * =========================================================================================
+ */
 public class LoginActivity extends AppCompatActivity {
 
     private EditText etEmail, etPassword;
@@ -37,7 +53,7 @@ public class LoginActivity extends AppCompatActivity {
         sessionManager = SessionManager.getInstance(this);
         ApiEndpoints.init(this);
 
-        // If already logged in, navigate straight to MainActivity
+        // Nếu tài khoản đã đăng nhập từ trước -> Chuyển thẳng vào MainActivity
         if (sessionManager.isLoggedIn()) {
             startActivity(new Intent(LoginActivity.this, MainActivity.class));
             finish();
@@ -46,6 +62,7 @@ public class LoginActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_login);
 
+        // Ánh xạ các thành phần giao diện
         etEmail = findViewById(R.id.etEmail);
         etPassword = findViewById(R.id.etPassword);
         btnLogin = findViewById(R.id.btnLogin);
@@ -55,12 +72,15 @@ public class LoginActivity extends AppCompatActivity {
 
         updateServerConfigText();
 
+        // Nút bấm thực hiện đăng nhập
         btnLogin.setOnClickListener(v -> attemptLogin());
 
+        // Chuyển sang màn hình Đăng ký
         tvGoToRegister.setOnClickListener(v -> {
             startActivity(new Intent(LoginActivity.this, RegisterActivity.class));
         });
 
+        // Bấm vào dòng "Địa chỉ máy chủ" để mở Dialog đổi IP
         tvServerConfig.setOnClickListener(v -> showServerConfigDialog());
     }
 
@@ -70,6 +90,12 @@ public class LoginActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * [LOGIC ĐĂNG NHẬP]:
+     * - Validate email & password không rỗng.
+     * - Tạo JSON request body: { "email": "...", "password": "..." }.
+     * - Gửi POST /api/auth/login.
+     */
     private void attemptLogin() {
         String email = etEmail.getText().toString().trim();
         String password = etPassword.getText().toString().trim();
@@ -86,6 +112,7 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
+        // Bật loading, vô hiệu hóa nút bấm
         setLoading(true);
 
         JSONObject requestBody = new JSONObject();
@@ -104,20 +131,24 @@ public class LoginActivity extends AppCompatActivity {
                 requestBody,
                 response -> {
                     setLoading(false);
+                    // Bóc tách thông tin người dùng từ phản hồi của Backend
                     long userId = response.optLong("id", 0);
                     String fullName = response.optString("fullName", "User");
                     String userEmail = response.optString("email", email);
 
+                    // Lưu thông tin phiên đăng nhập vào SharedPreferences
                     sessionManager.saveUser(userId, fullName, userEmail);
 
                     Toast.makeText(LoginActivity.this, "Chào mừng " + fullName + "!", Toast.LENGTH_SHORT).show();
 
+                    // Chuyển sang MainActivity và đóng màn hình Login
                     startActivity(new Intent(LoginActivity.this, MainActivity.class));
                     finish();
                 },
                 error -> {
                     setLoading(false);
                     String errorMsg;
+                    // Bóc tách mã lỗi từ Backend
                     if (error.networkResponse != null && error.networkResponse.data != null) {
                         errorMsg = "Sai email hoặc mật khẩu.";
                         try {
@@ -142,6 +173,10 @@ public class LoginActivity extends AppCompatActivity {
         btnLogin.setEnabled(!loading);
     }
 
+    /**
+     * [HỘP THOẠI ĐỔI IP MÁY CHỦ]:
+     * - Dành cho việc demo chạy trên điện thoại thật cắm cáp hoặc chung mạng WiFi.
+     */
     private void showServerConfigDialog() {
         EditText input = new EditText(this);
         input.setHint("e.g. 10.0.2.2:8080 or 192.168.1.x:8080");

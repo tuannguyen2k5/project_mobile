@@ -31,8 +31,25 @@ import vn.edu.usth.appfinal.network.ApiClient;
 import vn.edu.usth.appfinal.network.ApiEndpoints;
 import vn.edu.usth.appfinal.utils.SessionManager;
 
+/**
+ * =========================================================================================
+ * [FRONTEND - UI] MÀN HÌNH CHÍNH CỦA ỨNG DỤNG (MainActivity)
+ * =========================================================================================
+ * - Nhiệm vụ:
+ *   1. Thanh Header: Hiển thị lời chào "Xin chào, {Tên}!" kèm icon hồ sơ, hoặc nút "Đăng nhập" nếu là khách.
+ *   2. Thanh tìm kiếm (Search bar): Lọc món ăn thời gian thực khi gõ phím hoặc nhấn nút Search trên bàn phím ảo.
+ *   3. Điều hướng Tab: 2 Tab "Công thức" và "Yêu thích" trượt mượt mà bằng ViewPager2 + FragmentStateAdapter.
+ *   4. Nút bấm nổi (FloatingActionButton): Mở hộp thoại thêm công thức món ăn mới (yêu cầu đăng nhập).
+ *   5. Xem & Cập nhật hồ sơ cá nhân: Bấm vào tên/avatar để mở Dialog xem và sửa thông tin cá nhân.
+ * - Khi thầy cô hỏi:
+ *   + "Tìm kiếm tự động cập nhật ở đâu?": Tìm `etSearchRecipe.addTextChangedListener(...)`.
+ *   + "Nút đổi Tab 'Công thức' và 'Yêu thích' ở đâu?": Xem `updateTabs(position)` và `viewPager.registerOnPageChangeCallback(...)`.
+ *   + "Sửa thông tin tài khoản ở đâu?": Xem `showUserProfileDialog()` và `showEditProfileDialog()`.
+ * =========================================================================================
+ */
 public class MainActivity extends AppCompatActivity {
 
+    // Khai báo các thành phần giao diện (Views)
     private ViewPager2 viewPager;
     private TextView tabRecipes;
     private TextView tabFavorites;
@@ -52,15 +69,18 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // Khởi tạo quản lý phiên và địa chỉ IP kết nối server
         sessionManager = SessionManager.getInstance(this);
         ApiEndpoints.init(this);
 
+        // Xử lý tràn viền (Edge-to-Edge) để tránh nội dung bị che bởi tai thỏ / thanh điều hướng hệ thống
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.rootLayoutMain), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, 0);
             return insets;
         });
 
+        // Ánh xạ (Binding) các View từ file layout activity_main.xml
         viewPager = findViewById(R.id.viewPager);
         tabRecipes = findViewById(R.id.tabRecipes);
         tabFavorites = findViewById(R.id.tabFavorites);
@@ -73,24 +93,33 @@ public class MainActivity extends AppCompatActivity {
         btnClearSearch = findViewById(R.id.btnClearSearch);
         btnFabAddRecipe = findViewById(R.id.btnFabAddRecipe);
 
-        // ViewPager setup
+        // -------------------------------------------------------------
+        // [CẤU HÌNH VIEWPAGER2 & 2 TAB]: Tab 0 (Công thức) - Tab 1 (Yêu thích)
+        // -------------------------------------------------------------
         pagerAdapter = new HomePagerAdapter(this);
         viewPager.setAdapter(pagerAdapter);
 
+        // Bắt sự kiện khi click vào chữ "Công thức" hoặc "Yêu thích" để chuyển trang
         tabRecipes.setOnClickListener(v -> viewPager.setCurrentItem(0));
         tabFavorites.setOnClickListener(v -> viewPager.setCurrentItem(1));
 
+        // Lắng nghe sự kiện trượt trang (Swipe) của ViewPager2
         viewPager.registerOnPageChangeCallback(new ViewPager2.OnPageChangeCallback() {
             @Override
             public void onPageSelected(int position) {
+                // Đổi màu chữ và độ đậm của Tab được chọn
                 updateTabs(position);
+                // Nếu chuyển sang Tab Yêu thích (position = 1), tự động làm mới danh sách yêu thích
                 if (position == 1 && pagerAdapter.getFavoritesFragment() != null) {
                     pagerAdapter.getFavoritesFragment().loadFavorites();
                 }
             }
         });
 
-        // Search bar listeners
+        // -------------------------------------------------------------
+        // [THANH TÌM KIẾM]: Tự động lọc kết quả khi gõ ký tự
+        // -------------------------------------------------------------
+        // 1. Nhấn nút Search trên bàn phím ảo
         etSearchRecipe.setOnEditorActionListener((v, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 performSearch(etSearchRecipe.getText().toString());
@@ -99,13 +128,16 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
 
+        // 2. Lắng nghe thay đổi văn bản thời gian thực (Real-time TextWatcher)
         etSearchRecipe.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Hiện nút xóa (X) nếu ô tìm kiếm có chữ, ẩn đi nếu rỗng
                 btnClearSearch.setVisibility(s.length() > 0 ? View.VISIBLE : View.GONE);
+                // Nếu đang ở tab Yêu thích mà người dùng gõ tìm kiếm, tự động nhảy về tab Công thức
                 if (s.length() > 0 && viewPager.getCurrentItem() != 0) {
                     viewPager.setCurrentItem(0);
                 }
@@ -116,19 +148,24 @@ public class MainActivity extends AppCompatActivity {
             public void afterTextChanged(Editable s) {}
         });
 
+        // Nút (X) xóa nhanh toàn bộ chữ trong ô tìm kiếm
         btnClearSearch.setOnClickListener(v -> {
             etSearchRecipe.setText("");
             performSearch("");
         });
 
-        // Login / Logout buttons
+        // -------------------------------------------------------------
+        // [NÚT ĐĂNG NHẬP / ĐĂNG XUẤT TRÊN HEADER]
+        // -------------------------------------------------------------
         btnHeaderLogin.setOnClickListener(v -> {
             startActivity(new Intent(MainActivity.this, LoginActivity.class));
         });
 
         btnHeaderLogout.setOnClickListener(v -> showLogoutDialog());
 
-        // Floating button to Add Recipe (POST /api/recipes)
+        // -------------------------------------------------------------
+        // [NÚT NỔI (+) THÊM CÔNG THỨC MÓN ĂN MỚI]
+        // -------------------------------------------------------------
         btnFabAddRecipe.setOnClickListener(v -> {
             if (!sessionManager.isLoggedIn()) {
                 showLoginRequiredDialog("Thêm món ăn", "Bạn cần đăng nhập tài khoản để thêm món ăn mới vào hệ thống.");
@@ -137,6 +174,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // Cập nhật trạng thái hiển thị của Header và Tab khi vừa khởi động
         updateHeaderStatus();
         updateTabs(0);
     }
@@ -144,9 +182,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        // Cập nhật lại giao diện Header khi quay lại từ LoginActivity hoặc RegisterActivity
         updateHeaderStatus();
     }
 
+    /**
+     * [CẬP NHẬT HEADER]:
+     * - Nếu đã đăng nhập: Hiện "Xin chào, {Họ tên}!", hiện icon hồ sơ, hiện icon đăng xuất, ẩn nút "Đăng nhập".
+     * - Nếu là khách: Ẩn lời chào, ẩn icon hồ sơ, ẩn nút đăng xuất, hiện nút "Đăng nhập".
+     */
     private void updateHeaderStatus() {
         if (sessionManager.isLoggedIn()) {
             String fullName = sessionManager.getUserFullName();
@@ -155,6 +199,7 @@ public class MainActivity extends AppCompatActivity {
             if (ivProfileIcon != null) ivProfileIcon.setVisibility(View.VISIBLE);
             if (layoutUserGreeting != null) {
                 layoutUserGreeting.setClickable(true);
+                // Bấm vào lời chào hoặc avatar để xem chi tiết hồ sơ tài khoản
                 layoutUserGreeting.setOnClickListener(v -> showUserProfileDialog());
             }
             btnHeaderLogin.setVisibility(View.GONE);
@@ -172,6 +217,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * [HỘP THOẠI XEM THÔNG TIN CÁ NHÂN]:
+     * - Gửi request GET /api/users/me?userId={id} lên server.
+     * - Hiển thị Họ tên và Email hiện tại.
+     * - Cho phép bấm "Cập nhật thông tin" để mở form sửa thông tin.
+     */
     private void showUserProfileDialog() {
         if (!sessionManager.isLoggedIn()) {
             return;
@@ -186,7 +237,6 @@ public class MainActivity extends AppCompatActivity {
                 response -> {
                     String name = response.optString("fullName", sessionManager.getUserFullName());
                     String email = response.optString("email", sessionManager.getUserEmail());
-                    String createdAt = response.optString("createdAt", "");
 
                     String info = "👤 Họ và tên: " + name + "\n\n"
                                 + "📧 Email: " + email;
@@ -204,6 +254,12 @@ public class MainActivity extends AppCompatActivity {
         ApiClient.getQueue(this).add(profileReq);
     }
 
+    /**
+     * [HỘP THOẠI CẬP NHẬT THÔNG TIN CÁ NHÂN]:
+     * - Cho phép sửa Họ tên và Email.
+     * - Gửi request PUT /api/users/me?userId={id}.
+     * - Cập nhật lại SharedPreferences và làm mới Header nếu thành công.
+     */
     private void showEditProfileDialog(String currentName, String currentEmail) {
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -253,7 +309,7 @@ public class MainActivity extends AppCompatActivity {
                         reqBody.put("email", newEmail);
                     } catch (JSONException ignored) {}
 
-                    // PUT /api/users/me?userId={userId}
+                    // Gửi request PUT cập nhật thông tin lên server
                     String updateUrl = ApiEndpoints.getUpdateProfileUrl(userId);
                     JsonObjectRequest updateReq = new JsonObjectRequest(
                             Request.Method.PUT,
@@ -262,6 +318,7 @@ public class MainActivity extends AppCompatActivity {
                             resp -> {
                                 String updatedName = resp.optString("fullName", newName);
                                 String updatedEmail = resp.optString("email", newEmail);
+                                // Lưu thông tin mới vào session
                                 sessionManager.saveUser(userId, updatedName, updatedEmail);
                                 updateHeaderStatus();
                                 Toast.makeText(this, "Cập nhật thông tin thành công!", Toast.LENGTH_SHORT).show();
@@ -287,12 +344,20 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    /**
+     * Truyền từ khóa tìm kiếm sang RecipesFragment để lọc dữ liệu
+     */
     private void performSearch(String query) {
         if (pagerAdapter.getRecipesFragment() != null) {
             pagerAdapter.getRecipesFragment().searchRecipes(query);
         }
     }
 
+    /**
+     * [ĐỔI GIAO DIỆN TAB]:
+     * - Tab được chọn: Màu xanh đậm chủ đạo (0xFF285D38) và chữ IN ĐẬM (Typeface.BOLD).
+     * - Tab không chọn: Màu xám (0xFF888888) và chữ THƯỜNG (Typeface.NORMAL).
+     */
     private void updateTabs(int position) {
         tabRecipes.setTextColor(position == 0 ? 0xFF285D38 : 0xFF888888);
         tabFavorites.setTextColor(position == 1 ? 0xFF285D38 : 0xFF888888);
@@ -301,6 +366,9 @@ public class MainActivity extends AppCompatActivity {
         tabFavorites.setTypeface(null, position == 1 ? Typeface.BOLD : Typeface.NORMAL);
     }
 
+    /**
+     * Hiển thị thông báo khi khách nhấn vào tính năng yêu cầu tài khoản
+     */
     private void showLoginRequiredDialog(String title, String message) {
         new AlertDialog.Builder(this)
                 .setTitle(title)
@@ -312,6 +380,10 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    /**
+     * [HỘP THOẠI XÁC NHẬN ĐĂNG XUẤT]:
+     * - Khi xác nhận: Gọi sessionManager.logout(), xóa thông tin phiên, làm mới danh sách và header.
+     */
     private void showLogoutDialog() {
         new AlertDialog.Builder(this)
                 .setTitle("Đăng xuất")
@@ -320,9 +392,11 @@ public class MainActivity extends AppCompatActivity {
                     sessionManager.logout();
                     Toast.makeText(this, "Đã đăng xuất!", Toast.LENGTH_SHORT).show();
                     updateHeaderStatus();
+                    // Làm mới lại tab công thức về chế độ khách (chỉ 10 món)
                     if (pagerAdapter.getRecipesFragment() != null) {
                         pagerAdapter.getRecipesFragment().searchRecipes("");
                     }
+                    // Làm mới tab yêu thích (sẽ thông báo yêu cầu đăng nhập)
                     if (pagerAdapter.getFavoritesFragment() != null) {
                         pagerAdapter.getFavoritesFragment().loadFavorites();
                     }
@@ -331,9 +405,13 @@ public class MainActivity extends AppCompatActivity {
                 .show();
     }
 
+    /**
+     * Mở Dialog Fragment thêm món ăn mới
+     */
     private void openAddRecipeFragment() {
         AddRecipeFragment addRecipeFragment = AddRecipeFragment.newInstance();
         addRecipeFragment.setOnRecipeAddedListener(newRecipe -> {
+            // Sau khi thêm món thành công, làm mới lại danh sách món ăn trên trang chủ
             if (pagerAdapter.getRecipesFragment() != null) {
                 pagerAdapter.getRecipesFragment().searchRecipes("");
             }

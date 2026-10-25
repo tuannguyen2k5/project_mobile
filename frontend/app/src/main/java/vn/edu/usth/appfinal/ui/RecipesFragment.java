@@ -33,6 +33,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * =========================================================================================
+ * [FRONTEND - UI] FRAGMENT HIỂN THỊ DANH SÁCH CÔNG THỨC (Tab "Công thức")
+ * =========================================================================================
+ * - Nhiệm vụ:
+ *   1. Tải danh sách món ăn từ Backend qua API GET /api/recipes (hỗ trợ tìm kiếm theo từ khóa).
+ *   2. Phân quyền hiển thị:
+ *      + Khách (chưa đăng nhập): Chỉ hiển thị 10 món mặc định của CSDL (id <= 10).
+ *      + Đã đăng nhập: Xem toàn bộ các món của hệ thống và người dùng khác.
+ *   3. Đồng bộ trạng thái yêu thích (trái tim đỏ/trắng) dựa trên danh sách món đã lưu của user.
+ *   4. Bấm vào món: Khách bị chặn bằng Dialog yêu cầu đăng nhập; User đã đăng nhập được mở RecipeDetailActivity.
+ *   5. Bấm vào icon trái tim trên thẻ: Cập nhật giao diện lập tức (Optimistic UI) và gửi API thêm/xóa yêu thích.
+ * - Câu hỏi bảo vệ:
+ *   + "Tại sao khách chỉ thấy 10 món?": Xem dòng kiểm tra `if (isGuest && r.getId() > 10) continue;`.
+ *   + "Optimistic UI là gì?": Cập nhật icon trái tim ngay trước khi API phản hồi để tạo cảm giác mượt mà,
+ *     nếu API trả về lỗi thì mới hoàn tác lại (rollback).
+ * =========================================================================================
+ */
 public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeClickListener, RecipeAdapter.OnFavoriteClickListener {
 
     private RecyclerView rvRecipes;
@@ -58,18 +76,21 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
 
         sessionManager = SessionManager.getInstance(requireContext());
 
+        // Ánh xạ các thành phần giao diện
         rvRecipes = view.findViewById(R.id.rvRecipes);
         progressBar = view.findViewById(R.id.progressBar);
         layoutError = view.findViewById(R.id.layoutError);
         tvErrorMessage = view.findViewById(R.id.tvErrorMessage);
         btnRetry = view.findViewById(R.id.btnRetry);
 
+        // Cài đặt RecyclerView và Adapter
         rvRecipes.setLayoutManager(new LinearLayoutManager(requireContext()));
         adapter = new RecipeAdapter(new ArrayList<>());
-        adapter.setOnRecipeClickListener(this);
-        adapter.setOnFavoriteClickListener(this);
+        adapter.setOnRecipeClickListener(this);     // Bắt sự kiện click vào thẻ món ăn
+        adapter.setOnFavoriteClickListener(this);   // Bắt sự kiện click vào icon trái tim
         rvRecipes.setAdapter(adapter);
 
+        // Nút thử lại khi kết nối mạng lỗi
         btnRetry.setOnClickListener(v -> loadRecipes(currentSearchQuery));
 
         return view;
@@ -78,25 +99,34 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
     @Override
     public void onResume() {
         super.onResume();
+        // Tự động tải lại danh sách món ăn mỗi khi quay lại màn hình
         loadRecipes(currentSearchQuery);
     }
 
+    /**
+     * Hàm nhận từ khóa tìm kiếm từ thanh Search của MainActivity
+     */
     public void searchRecipes(String query) {
         this.currentSearchQuery = query != null ? query : "";
         loadRecipes(this.currentSearchQuery);
     }
 
+    /**
+     * [LUỒNG TẢI DỮ LIỆU TỔNG THỂ]:
+     * - Nếu đã đăng nhập: Tải danh sách yêu thích trước để biết món nào đã thả tim, sau đó tải danh sách món.
+     * - Nếu là khách: Bỏ qua bước kiểm tra yêu thích, tải thẳng danh sách món mặc định.
+     */
     private void loadRecipes(String search) {
         if (!isAdded()) return;
 
         progressBar.setVisibility(View.VISIBLE);
         layoutError.setVisibility(View.GONE);
 
-        // If user is logged in, sync favorite list first or in parallel
         if (sessionManager.isLoggedIn()) {
             long userId = sessionManager.getUserId();
             String favUrl = ApiEndpoints.getFavoritesUrl(userId);
 
+            // Nạp danh sách ID các món đã yêu thích
             JsonArrayRequest favReq = new JsonArrayRequest(
                     Request.Method.GET,
                     favUrl,
@@ -124,6 +154,10 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
         }
     }
 
+    /**
+     * [GỌI API LẤY DANH SÁCH MÓN ĂN]:
+     * - Endpoint: GET /api/recipes?search={query}&userId={userId}
+     */
     private void fetchRecipesFromServer(String search) {
         if (!isAdded()) return;
 
@@ -140,14 +174,16 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
 
                     currentRecipes.clear();
                     boolean isGuest = !sessionManager.isLoggedIn();
+                    
                     for (int i = 0; i < response.length(); i++) {
                         JSONObject obj = response.optJSONObject(i);
                         if (obj != null) {
                             Recipe r = Recipe.fromJson(obj);
-                            // Ở chế độ khách: CHỈ hiển thị danh sách 10 món fix cứng trong database (id <= 10)
+                            // [CHẶN KHÁCH]: Khách chỉ được xem 10 món mặc định của CSDL (id <= 10)
                             if (isGuest && r.getId() > 10) {
                                 continue;
                             }
+                            // Đánh dấu true nếu món này nằm trong danh sách đã yêu thích
                             if (favoriteRecipeIds.contains(r.getId())) {
                                 r.setFavorite(true);
                             }
@@ -155,6 +191,7 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
                         }
                     }
 
+                    // Nếu danh sách rỗng -> Hiện thông báo giao diện trống
                     if (currentRecipes.isEmpty()) {
                         layoutError.setVisibility(View.VISIBLE);
                         tvErrorMessage.setText(search.isEmpty()
@@ -165,9 +202,11 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
                         layoutError.setVisibility(View.GONE);
                     }
 
+                    // Cập nhật dữ liệu mới vào Adapter để hiển thị lên màn hình
                     adapter.updateData(currentRecipes);
                 },
                 error -> {
+                    // Xử lý khi mất mạng hoặc Backend chưa bật
                     if (!isAdded()) return;
                     progressBar.setVisibility(View.GONE);
                     layoutError.setVisibility(View.VISIBLE);
@@ -188,9 +227,13 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
         ApiClient.getQueue(requireContext()).add(request);
     }
 
+    /**
+     * [SỰ KIỆN CLICK VÀO THẺ MÓN ĂN]:
+     * - Khách: Bị chặn và hiện Dialog yêu cầu đăng nhập.
+     * - Đã đăng nhập: Chuyển sang RecipeDetailActivity kèm recipe_id.
+     */
     @Override
     public void onRecipeClick(Recipe recipe) {
-        // GUEST CHECK: Guest chỉ được xem danh sách, không thể bấm vào xem chi tiết nếu chưa đăng ký / đăng nhập
         if (!sessionManager.isLoggedIn()) {
             new AlertDialog.Builder(requireContext())
                     .setTitle("Yêu cầu đăng nhập")
@@ -208,6 +251,11 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
         startActivity(intent);
     }
 
+    /**
+     * [SỰ KIỆN CLICK VÀO ICON TRÁI TIM TRÊN THẺ MÓN ĂN]:
+     * - Sử dụng Optimistic UI update: Đổi màu icon lập tức trên item của RecyclerView.
+     * - Gọi API ngầm: Thêm hoặc xóa món yêu thích. Nếu lỗi mạng thì hoàn tác lại màu icon cũ.
+     */
     @Override
     public void onFavoriteClick(Recipe recipe, int position) {
         if (!sessionManager.isLoggedIn()) {
@@ -225,17 +273,19 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
         long userId = sessionManager.getUserId();
         boolean willBeFavorite = !recipe.isFavorite();
 
-        // Optimistic UI update
+        // 1. [OPTIMISTIC UI UPDATE] Cập nhật ngay trên giao diện trước khi API trả về
         recipe.setFavorite(willBeFavorite);
         if (willBeFavorite) {
             favoriteRecipeIds.add(recipe.getId());
         } else {
             favoriteRecipeIds.remove(recipe.getId());
         }
+        // Làm mới đúng vị trí của item vừa click mà không load lại toàn bộ danh sách
         adapter.notifyItemChanged(position);
 
+        // 2. Gửi request mạng tương ứng
         if (willBeFavorite) {
-            // POST /api/favorites/{recipeId}?userId={userId}
+            // Thêm vào yêu thích
             String addUrl = ApiEndpoints.getAddFavoriteUrl(recipe.getId(), userId);
             JsonObjectRequest addReq = new JsonObjectRequest(
                     Request.Method.POST,
@@ -243,6 +293,7 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
                     null,
                     resp -> Toast.makeText(requireContext(), "Đã thêm vào yêu thích ♥", Toast.LENGTH_SHORT).show(),
                     err -> {
+                        // Rollback nếu thất bại
                         recipe.setFavorite(false);
                         favoriteRecipeIds.remove(recipe.getId());
                         adapter.notifyItemChanged(position);
@@ -251,7 +302,7 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
             );
             ApiClient.getQueue(requireContext()).add(addReq);
         } else {
-            // DELETE /api/favorites/{recipeId}?userId={userId}
+            // Xóa khỏi yêu thích
             String delUrl = ApiEndpoints.getRemoveFavoriteUrl(recipe.getId(), userId);
             JsonObjectRequest delReq = new JsonObjectRequest(
                     Request.Method.DELETE,
@@ -259,6 +310,7 @@ public class RecipesFragment extends Fragment implements RecipeAdapter.OnRecipeC
                     null,
                     resp -> Toast.makeText(requireContext(), "Đã xóa khỏi yêu thích", Toast.LENGTH_SHORT).show(),
                     err -> {
+                        // Rollback nếu thất bại
                         recipe.setFavorite(true);
                         favoriteRecipeIds.add(recipe.getId());
                         adapter.notifyItemChanged(position);

@@ -18,6 +18,23 @@ import org.springframework.web.server.ResponseStatusException;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * =========================================================================================
+ * [BACKEND] SERVICE QUẢN LÝ CÔNG THỨC & DINH DƯỠNG (Recipe Business Logic)
+ * =========================================================================================
+ * - Nhiệm vụ:
+ *   1. Phân quyền hiển thị danh sách: Khách chỉ xem 10 món mặc định; User đăng nhập xem toàn bộ.
+ *   2. Tìm kiếm món ăn theo từ khóa không phân biệt hoa thường.
+ *   3. Lấy chi tiết món ăn (kèm nguyên liệu, các bước nấu, chỉ số dinh dưỡng).
+ *   4. Thêm công thức món ăn mới (tự động liên kết với User ID đang đăng nhập).
+ *   5. Chỉnh sửa công thức món ăn: Ràng buộc bảo vệ nghiêm ngặt (chỉ chủ sở hữu món mới được sửa,
+ *      10 món gốc của hệ thống có id <= 10 bị khóa không cho sửa).
+ * - Câu hỏi bảo vệ thường gặp:
+ *   + "Tại sao khách chỉ thấy 10 món?": Xem phương thức getRecipes() - kiểm tra if (isGuest).
+ *   + "Logic cascade nguyên liệu và các bước nấu lưu thế nào?": Xem createRecipe() / updateRecipe().
+ *   + "Chặn người khác sửa món của mình ở đâu?": Xem updateRecipe() - kiểm tra recipe.getUser().getId().equals(currentUserId).
+ * =========================================================================================
+ */
 @Service
 public class RecipeService {
 
@@ -30,9 +47,10 @@ public class RecipeService {
     }
 
     /**
-     * Lấy danh sách món ăn:
-     * - Khách (userId == null): Chỉ xem 10 món fix cứng trong database (id <= 10)
-     * - Đã đăng nhập (userId != null): Xem toàn bộ món (10 món gốc + món của các tài khoản khác + tài khoản hiện tại)
+     * LẤY DANH SÁCH MÓN ĂN (Hỗ trợ tìm kiếm & phân quyền khách/đăng nhập)
+     * - Khách (userId == null hoặc <= 0): Chỉ lấy tối đa 10 món mặc định ban đầu trong CSDL (id <= 10).
+     * - Người dùng đã đăng nhập (userId > 0): Lấy toàn bộ món ăn (cả của hệ thống và của tất cả người dùng khác).
+     * - Kết quả được sắp xếp theo thứ tự ID tăng dần.
      */
     @Transactional(readOnly = true)
     public List<RecipeSummaryDto> getRecipes(String search, Long userId) {
@@ -42,67 +60,93 @@ public class RecipeService {
         boolean isGuest = (userId == null || userId <= 0);
 
         if (isGuest) {
-            // Chế độ khách: CHỈ hiển thị 10 món fix cứng ban đầu trong database
+            // [LOGIC KHÁCH] Giới hạn truy cập chỉ trong 10 món mặc định ban đầu của database
             if (search == null || search.isBlank()) {
+                // Không có từ khóa tìm kiếm: Lấy tất cả món có id <= 10
                 recipes = recipeRepository.findByIdLessThanEqual(10L, sort);
             } else {
+                // Có từ khóa: Tìm kiếm chỉ trong các món có id <= 10
                 recipes = recipeRepository.findByIdLessThanEqualAndTitleContainingIgnoreCase(10L, search.trim(), sort);
             }
         } else {
-            // Khi đăng nhập: Xem được toàn bộ món của tất cả người dùng
+            // [LOGIC ĐÃ ĐĂNG NHẬP] Xem được toàn bộ món ăn của toàn hệ thống
             if (search == null || search.isBlank()) {
+                // Không tìm kiếm: Lấy tất cả các món trong bảng recipes
                 recipes = recipeRepository.findAll(sort);
             } else {
+                // Có tìm kiếm: Tìm theo tên món ăn (chứa chuỗi con, không phân biệt hoa thường)
                 recipes = recipeRepository.findByTitleContainingIgnoreCase(search.trim(), sort);
             }
         }
 
+        // Chuyển đổi danh sách Entity Recipe sang DTO tóm tắt (RecipeSummaryDto) để tối ưu dung lượng mạng
         return recipes.stream()
                 .map(RecipeSummaryDto::from)
                 .toList();
     }
 
+    /**
+     * Overload method lấy danh sách món ăn khi không truyền userId (mặc định coi như khách)
+     */
     @Transactional(readOnly = true)
     public List<RecipeSummaryDto> getRecipes(String search) {
         return getRecipes(search, null);
     }
 
+    /**
+     * LẤY CHI TIẾT 1 MÓN ĂN THEO ID
+     * - Tìm món theo khóa chính (id). Nếu không thấy trả về mã HTTP 404 NOT_FOUND.
+     * - Map Entity sang RecipeDetailDto gồm: dinh dưỡng, người đăng, nguyên liệu, hướng dẫn.
+     */
     @Transactional(readOnly = true)
     public RecipeDetailDto getRecipeById(Long id) {
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Recipe not found with id " + id));
+                        HttpStatus.NOT_FOUND, "Không tìm thấy công thức với id: " + id));
 
         return RecipeDetailDto.from(recipe);
     }
 
     /**
-     * POST /api/recipes - Thêm món ăn
+     * TẠO MÓN ĂN MỚI
+     * - Validate dữ liệu đầu vào (tên món bắt buộc, không được để trống).
+     * - Gán User sở hữu nếu có userId hợp lệ.
+     * - Map các trường dinh dưỡng (calories, protein, carbs, fat, thời gian chuẩn bị, thời gian nấu).
+     * - Map danh sách nguyên liệu (Ingredients) và các bước nấu (Instructions) vào Entity Recipe.
+     * - Lưu xuống DB (Cascade sẽ tự động insert vào bảng ingredients và instructions).
      */
     @Transactional
     public RecipeDetailDto createRecipe(RecipeRequestDto request, Long userId) {
+        // Kiểm tra tính hợp lệ của request
         if (request == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipe data cannot be null");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Dữ liệu công thức không được để trống");
         }
         if (request.title() == null || request.title().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Title is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tên món ăn là bắt buộc");
         }
 
         Recipe recipe = new Recipe();
+        
+        // Liên kết với tài khoản người tạo (nếu có userId hợp lệ)
         if (userId != null && userId > 0) {
             userRepository.findById(userId).ifPresent(recipe::setUser);
         }
+        
+        // Gán các thông tin cơ bản của món ăn
         recipe.setTitle(request.title().trim());
         recipe.setDescription(request.description());
         recipe.setImageUrl(request.imageUrl());
         recipe.setPrepTime(request.prepTime() != null ? request.prepTime() : 0);
         recipe.setCookTime(request.cookTime() != null ? request.cookTime() : 0);
         recipe.setServings(request.servings() != null ? request.servings() : 1);
+        
+        // Gán bảng thành phần dinh dưỡng (Nutrition Facts)
         recipe.setCalories(request.calories() != null ? request.calories() : 0);
         recipe.setProteinG(request.proteinG() != null ? request.proteinG() : BigDecimal.ZERO);
         recipe.setCarbsG(request.carbsG() != null ? request.carbsG() : BigDecimal.ZERO);
         recipe.setFatG(request.fatG() != null ? request.fatG() : BigDecimal.ZERO);
 
+        // Duyệt danh sách nguyên liệu và thêm vào món ăn
         if (request.ingredients() != null) {
             for (var ingDto : request.ingredients()) {
                 if (ingDto != null && ingDto.name() != null && !ingDto.name().isBlank()) {
@@ -113,6 +157,7 @@ public class RecipeService {
             }
         }
 
+        // Duyệt danh sách các bước nấu và đánh số thứ tự (step_number)
         if (request.instruction() != null) {
             int autoStep = 1;
             for (var instDto : request.instruction()) {
@@ -125,6 +170,7 @@ public class RecipeService {
             }
         }
 
+        // Lưu vào MySQL: Nhờ CascadeType.ALL, cả Recipe, Ingredients và Instructions đều được insert
         Recipe saved = recipeRepository.save(recipe);
         return RecipeDetailDto.from(saved);
     }
@@ -135,26 +181,30 @@ public class RecipeService {
     }
 
     /**
-     * PUT /api/recipes/{id} - Cập nhật món ăn
-     * Chỉ chủ sở hữu (user_id của món khớp với currentUserId) mới có quyền chỉnh sửa.
+     * CẬP NHẬT MÓN ĂN (Chỉnh sửa công thức)
+     * - Bảo vệ quyền hạn:
+     *   1. 10 món mặc định của hệ thống (id <= 10) bị cấm sửa (HTTP 403 FORBIDDEN).
+     *   2. Chỉ tài khoản tạo ra món ăn đó (currentUserId == recipe.user.id) mới được phép sửa.
+     * - Cập nhật toàn bộ thông tin cơ bản, bảng dinh dưỡng, làm mới danh sách nguyên liệu và hướng dẫn.
      */
     @Transactional
     public RecipeDetailDto updateRecipe(Long id, RecipeRequestDto request, Long currentUserId) {
         if (id == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipe id cannot be null");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ID món ăn không được để trống");
         }
         if (request == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Recipe data cannot be null");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Dữ liệu cập nhật không được để trống");
         }
         if (request.title() != null && request.title().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Title cannot be empty");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Tên món ăn không được để trống");
         }
 
+        // Tìm món ăn theo id, nếu không thấy báo lỗi 404
         Recipe recipe = recipeRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND, "Recipe not found with id " + id));
+                        HttpStatus.NOT_FOUND, "Không tìm thấy món ăn với ID: " + id));
 
-        // 1. Món mặc định cố định của hệ thống (id <= 10 hoặc user == null) không thể chỉnh sửa
+        // [KIỂM TRA 1]: Chặn chỉnh sửa 10 món mặc định ban đầu của hệ thống
         if (recipe.getUser() == null || (recipe.getId() != null && recipe.getId() <= 10)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -162,7 +212,7 @@ public class RecipeService {
             );
         }
 
-        // 2. Chỉ tài khoản tạo ra món ăn mới có quyền chỉnh sửa
+        // [KIỂM TRA 2]: Kiểm tra quyền sở hữu món ăn
         if (currentUserId == null || !recipe.getUser().getId().equals(currentUserId)) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -170,6 +220,7 @@ public class RecipeService {
             );
         }
 
+        // Cập nhật các trường thông tin cơ bản
         if (request.title() != null) {
             recipe.setTitle(request.title().trim());
         }
@@ -188,6 +239,8 @@ public class RecipeService {
         if (request.servings() != null) {
             recipe.setServings(request.servings());
         }
+        
+        // Cập nhật các chỉ số dinh dưỡng
         if (request.calories() != null) {
             recipe.setCalories(request.calories());
         }
@@ -201,6 +254,7 @@ public class RecipeService {
             recipe.setFatG(request.fatG());
         }
 
+        // Làm mới danh sách nguyên liệu: Xóa các nguyên liệu cũ và nạp lại từ request
         if (request.ingredients() != null) {
             recipe.getIngredients().clear();
             for (var ingDto : request.ingredients()) {
@@ -212,6 +266,7 @@ public class RecipeService {
             }
         }
 
+        // Làm mới các bước hướng dẫn: Xóa các bước cũ và nạp lại từ request
         if (request.instruction() != null) {
             recipe.getInstruction().clear();
             int autoStep = 1;
@@ -225,6 +280,7 @@ public class RecipeService {
             }
         }
 
+        // Lưu bản cập nhật vào MySQL
         Recipe updated = recipeRepository.save(recipe);
         return RecipeDetailDto.from(updated);
     }

@@ -11,6 +11,16 @@ import vn.edu.usth.appfinal.model.Instruction;
 
 import java.util.List;
 
+/**
+ * =========================================================================================
+ * [FRONTEND - ADAPTER] ADAPTER HIỂN THỊ CÁC BƯỚC NẤU ĂN (InstructionAdapter)
+ * =========================================================================================
+ * - Dùng trong `RecipeDetailActivity` để hiển thị từng bước hướng dẫn (`item_instruction.xml`).
+ * - Hiển thị:
+ *   + Số thứ tự bước (tvStepNumber, vd: "1", "2", "3").
+ *   + Nội dung hướng dẫn chi tiết của bước đó (tvStepDescription).
+ * =========================================================================================
+ */
 public class InstructionAdapter extends RecyclerView.Adapter<InstructionAdapter.ViewHolder> {
 
     private final List<Instruction> instructions;
@@ -26,6 +36,9 @@ public class InstructionAdapter extends RecyclerView.Adapter<InstructionAdapter.
         return new ViewHolder(view);
     }
 
+    /**
+     * Gắn số bước và nội dung mô tả của bước nấu vào view
+     */
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         Instruction item = instructions.get(position);

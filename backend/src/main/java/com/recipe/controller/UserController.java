@@ -1,44 +1,52 @@
 package com.recipe.controller;
 
 import com.recipe.dto.UserDto;
-import com.recipe.entity.User;
-import com.recipe.repository.UserRepository;
-import org.springframework.http.HttpStatus;
+import com.recipe.service.UserService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
-
+/**
+ * =========================================================================================
+ * [BACKEND] CONTROLLER QUẢN LÝ THÔNG TIN NGƯỜI DÙNG (User Profile REST API)
+ * =========================================================================================
+ * - Base URL: http://localhost:8080/api/users
+ * - Kiến trúc phân lớp chuẩn: Controller -> UserService -> UserRepository
+ * - Cung cấp 2 endpoint:
+ *   1. GET /api/users/me : Lấy thông tin cá nhân (họ tên, email, ngày tạo tài khoản).
+ *   2. PUT /api/users/me : Cập nhật hồ sơ người dùng (đổi họ tên, đổi email kèm kiểm tra trùng lặp).
+ * =========================================================================================
+ */
 @RestController
 @RequestMapping("/api/users")
 @CrossOrigin(origins = "*")
 public class UserController {
 
-    private final UserRepository userRepository;
+    private final UserService userService;
 
-    public UserController(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    // Tiêm (Inject) UserService thay vì tiêm trực tiếp UserRepository
+    public UserController(UserService userService) {
+        this.userService = userService;
     }
 
+    /**
+     * [API 1] GET /api/users/me
+     * Lấy thông tin tài khoản hiện tại để hiển thị trên phần Header / Hồ sơ cá nhân của app Android.
+     */
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(
             @RequestParam(required = false) Long userId,
             @RequestHeader(value = "X-User-Id", required = false) Long headerUserId) {
 
         Long targetId = userId != null ? userId : (headerUserId != null ? headerUserId : 1L);
-
-        User user = userRepository.findById(targetId).orElse(null);
-        if (user == null) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", "User not found with id: " + targetId);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
-        }
-
-        UserDto dto = new UserDto(user.getId(), user.getFullName(), user.getEmail(), user.getCreatedAt());
+        UserDto dto = userService.getUserProfile(targetId);
         return ResponseEntity.ok(dto);
     }
 
+    /**
+     * [API 2] PUT /api/users/me
+     * Cập nhật thông tin cá nhân (Họ và tên, Email).
+     * - UserService sẽ kiểm tra tài khoản và kiểm tra trùng lặp email nếu đổi email.
+     */
     @PutMapping("/me")
     public ResponseEntity<?> updateCurrentUser(
             @RequestParam(required = false) Long userId,
@@ -46,30 +54,7 @@ public class UserController {
             @RequestBody UserDto dto) {
 
         Long targetId = userId != null ? userId : (headerUserId != null ? headerUserId : 1L);
-
-        User user = userRepository.findById(targetId).orElse(null);
-        if (user == null) {
-            Map<String, String> error = new HashMap<>();
-            error.put("error", "User not found with id: " + targetId);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
-        }
-
-        if (dto.getFullName() != null && !dto.getFullName().trim().isEmpty()) {
-            user.setFullName(dto.getFullName().trim());
-        }
-
-        if (dto.getEmail() != null && !dto.getEmail().trim().isEmpty()) {
-            String newEmail = dto.getEmail().trim().toLowerCase();
-            if (!newEmail.equals(user.getEmail()) && userRepository.existsByEmail(newEmail)) {
-                Map<String, String> error = new HashMap<>();
-                error.put("error", "Email đã được sử dụng bởi tài khoản khác.");
-                return ResponseEntity.badRequest().body(error);
-            }
-            user.setEmail(newEmail);
-        }
-
-        User saved = userRepository.save(user);
-        UserDto updatedDto = new UserDto(saved.getId(), saved.getFullName(), saved.getEmail(), null);
+        UserDto updatedDto = userService.updateUserProfile(targetId, dto);
         return ResponseEntity.ok(updatedDto);
     }
 }
