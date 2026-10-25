@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootLayoutMain"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:fitsSystemWindows="true"
+    android:background="@color/bg_main">
+
+    <!-- Top Header Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp"
+        android:gravity="center_vertical">
+
+        <LinearLayout
+            android:id="@+id/layoutUserGreeting"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:background="?attr/selectableItemBackground"
+            android:paddingVertical="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textColor="@color/primary"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginTop="2dp">
+
+                <TextView
+                    android:id="@+id/tvUserGreeting"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text=""
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp"
+                    android:visibility="gone" />
+
+                <ImageView
+                    android:id="@+id/ivProfileIcon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_profile"
+                    android:layout_marginStart="4dp"
+                    android:visibility="gone"
+                    android:contentDescription="Profile" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- Login Button for Guest -->
+        <androidx.appcompat.widget.AppCompatButton
+            android:id="@+id/btnHeaderLogin"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:background="@drawable/bg_button_primary"
+            android:textColor="@color/white"
+            android:text="@string/guest_login_button"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="14dp"
+            android:visibility="gone" />
+
+        <!-- Logout Button for Member -->
+        <ImageView
+            android:id="@+id/btnHeaderLogout"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_logout"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/logout" />
+
+    </LinearLayout>
+
+    <!-- Search Input Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="12dp"
+        android:background="@drawable/bg_search_input"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_search"
+            android:layout_marginEnd="8dp"
+            android:contentDescription="Search Icon" />
+
+        <EditText
+            android:id="@+id/etSearchRecipe"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="@null"
+            android:hint="@string/search_hint"
+            android:imeOptions="actionSearch"
+            android:inputType="text"
+            android:maxLines="1"
+            android:textColor="@color/text_primary"
+            android:textColorHint="@color/text_hint"
+            android:textSize="14sp" />
+
+        <ImageView
+            android:id="@+id/btnClearSearch"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:padding="4dp"
+            android:src="@drawable/ic_back"
+            android:rotation="45"
+            android:visibility="gone"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Clear search" />
+
+    </LinearLayout>
+
+    <!-- Content Container with ViewPager & FAB -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/viewPager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- Floating Add Recipe Button -->
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btnFabAddRecipe"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="16dp"
+            android:src="@drawable/ic_plus"
+            android:contentDescription="Thêm món ăn"
+            android:backgroundTint="@color/primary"
+            android:tint="@color/white" />
+
+    </FrameLayout>
+
+    <!-- Bottom Navigation Tabs -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:orientation="horizontal"
+        android:background="@color/card_bg"
+        android:elevation="8dp">
+
+        <TextView
+            android:id="@+id/tabRecipes"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/title_recipes"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary"
+            android:background="?attr/selectableItemBackground" />
+
+        <TextView
+            android:id="@+id/tabFavorites"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/title_favorites"
+            android:textSize="15sp"
+            android:textColor="@color/text_muted"
+            android:background="?attr/selectableItemBackground" />
+
+    </LinearLayout>
+
+</LinearLayout>

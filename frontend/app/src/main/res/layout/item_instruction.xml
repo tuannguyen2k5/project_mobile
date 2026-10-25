@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:paddingVertical="10dp"
+    android:paddingHorizontal="4dp"
+    android:gravity="top">
+
+    <!-- Step number badge -->
+    <TextView
+        android:id="@+id/tvStepNumber"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:background="@drawable/bg_button_primary"
+        android:textColor="@color/white"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:text="1"
+        android:layout_marginEnd="12dp" />
+
+    <TextView
+        android:id="@+id/tvStepDescription"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:textSize="15sp"
+        android:lineSpacingExtra="4dp"
+        android:textColor="@color/text_primary"
+        android:text="Season the chicken breast with salt and pepper." />
+
+</LinearLayout>

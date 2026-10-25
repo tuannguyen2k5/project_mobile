@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/bg_rounded_card"
+    android:layout_marginHorizontal="16dp"
+    android:layout_marginVertical="6dp"
+    android:padding="12dp"
+    android:gravity="center_vertical">
+
+    <!-- Recipe Image -->
+    <com.android.volley.toolbox.NetworkImageView
+        android:id="@+id/ivRecipeThumb"
+        android:layout_width="84dp"
+        android:layout_height="84dp"
+        android:scaleType="centerCrop"
+        android:background="#EFEFEF" />
+
+    <!-- Recipe Text Information -->
+    <LinearLayout
+        android:id="@+id/layoutRecipeText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="14dp"
+        android:layout_marginEnd="8dp">
+
+        <TextView
+            android:id="@+id/tvRecipeName"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Chicken Salad"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/text_primary"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/tvRecipeInfo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="20 min  •  350 kcal"
+            android:textSize="13sp"
+            android:textColor="@color/primary"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvNutritionSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="P: 32g  •  C: 12g  •  F: 18g"
+            android:textSize="12sp"
+            android:textColor="@color/text_secondary" />
+
+    </LinearLayout>
+
+    <!-- Favorite Heart Icon -->
+    <ImageView
+        android:id="@+id/ivFavorite"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:padding="6dp"
+        android:src="@drawable/ic_heart_outline"
+        android:contentDescription="Favorite"
+        android:background="?attr/selectableItemBackgroundBorderless" />
+
+</LinearLayout>
